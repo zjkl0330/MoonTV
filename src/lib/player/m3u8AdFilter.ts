@@ -22,6 +22,8 @@ interface Segment {
   adStart: boolean;
   /** 标签中是否带 CUE-IN 结束标记 */
   adEnd: boolean;
+  /** CUE-OUT 声明的广告秒数，源没写则为 null */
+  adSeconds: number | null;
 }
 
 // 无显式标记时，按分片数与时长判定一个不连续块是否像广告
@@ -31,6 +33,10 @@ const MAX_AD_SECONDS = 180;
 const AD_TO_MAIN_RATIO = 3;
 // 主内容短于此秒数时不做推断式剔除
 const MIN_MAIN_CONTENT_SECONDS = 120;
+// 单次最多剔除列表总时长的比例，超过说明判断不可信，整体放弃
+const MAX_REMOVED_RATIO = 0.3;
+// 剔除量小于这个秒数时不做比例否决，短片不该因此放弃去广告
+const MIN_SHARE_CHECK_SECONDS = 60;
 
 const EMPTY_RESULT: AdFilterResult = {
   content: '',
@@ -58,6 +64,21 @@ function hasAdEndTag(tags: string[]): boolean {
     }
     return false;
   });
+}
+
+/**
+ * 取 CUE-OUT 声明的广告时长。源经常只打 CUE-OUT 而忘记 CUE-IN，
+ * 有声明秒数就能限定剔除范围，不必一路删到列表结尾。
+ */
+function adSecondsFromTags(tags: string[]): number | null {
+  for (const line of tags) {
+    const match = line.match(/^#EXT-X-CUE-OUT\s*:\s*(?:DURATION=)?([\d.]+)/i);
+    if (match) {
+      const seconds = parseFloat(match[1]);
+      if (seconds > 0) return seconds;
+    }
+  }
+  return null;
 }
 
 /**
@@ -117,6 +138,7 @@ function parseSegments(lines: string[]): {
       ),
       adStart: hasAdStartTag(pendingTags),
       adEnd: hasAdEndTag(pendingTags),
+      adSeconds: adSecondsFromTags(pendingTags),
     });
     pendingTags = [];
   }
@@ -127,23 +149,63 @@ function parseSegments(lines: string[]): {
 }
 
 /**
- * 找出应剔除的分片下标集合。
- * 优先信任显式标记（CUE-OUT/CUE-IN、SCTE-35），
- * 其次按 DISCONTINUITY 分块，把明显偏短的块当作广告插播。
+ * 按显式标记（CUE-OUT/CUE-IN、SCTE-35）剔除广告。
+ * 源经常忘记打 CUE-IN，所以还要受 CUE-OUT 声明秒数与分片数上限约束，
+ * 超出范围就认定标记已失效，剩下的按正片处理。
  */
-function findAdIndexes(segments: Segment[]): Set<number> {
+function markedAdIndexes(segments: Segment[]): Set<number> {
+  const ads = new Set<number>();
+  let secondsLeft = 0;
+  let segmentsLeft = 0;
+  let inAd = false;
+
+  const stop = () => {
+    inAd = false;
+    secondsLeft = 0;
+    segmentsLeft = 0;
+  };
+
+  for (let index = 0; index < segments.length; index++) {
+    const segment = segments[index];
+    if (segment.adEnd) {
+      // CUE-IN 跟随的分片已经回到正片
+      stop();
+      continue;
+    }
+
+    if (segment.adStart) {
+      inAd = true;
+      secondsLeft = segment.adSeconds ?? MAX_AD_SECONDS;
+      segmentsLeft = MAX_AD_SEGMENTS;
+    }
+
+    if (!inAd) continue;
+
+    // 分片比剩余声明时长还长，说明它属于正片而不是广告
+    if (
+      segmentsLeft <= 0 ||
+      secondsLeft <= 0 ||
+      segment.duration > secondsLeft
+    ) {
+      stop();
+      continue;
+    }
+
+    ads.add(index);
+    secondsLeft -= segment.duration;
+    segmentsLeft -= 1;
+  }
+
+  return ads;
+}
+
+/**
+ * 无标记时按 discontinuity 分块，把明显偏短的块当作广告插播。
+ * 最后一个块永远保留：它更可能是片尾曲或下集预告，而不是广告。
+ */
+function inferredAdIndexes(segments: Segment[]): Set<number> {
   const ads = new Set<number>();
 
-  let inMarkedAd = false;
-  segments.forEach((segment, index) => {
-    // 标签跟随其后的分片：CUE-IN 之后即回到正片
-    if (segment.adEnd) inMarkedAd = false;
-    if (segment.adStart) inMarkedAd = true;
-    if (inMarkedAd) ads.add(index);
-  });
-  if (ads.size > 0) return ads;
-
-  // 按 discontinuity 切块
   const blocks: number[][] = [];
   segments.forEach((segment, index) => {
     if (segment.discontinuity || blocks.length === 0) {
@@ -163,6 +225,9 @@ function findAdIndexes(segments: Segment[]): Set<number> {
   if (longest < MIN_MAIN_CONTENT_SECONDS) return ads;
 
   blocks.forEach((block, index) => {
+    // 尾块保护：短的正片结尾和短广告在播放列表里无法区分
+    if (index === blocks.length - 1) return;
+
     const seconds = blockSeconds[index];
     if (
       block.length <= MAX_AD_SEGMENTS &&
@@ -175,6 +240,34 @@ function findAdIndexes(segments: Segment[]): Set<number> {
   });
 
   return ads;
+}
+
+function totalSeconds(segments: Segment[]): number {
+  return segments.reduce((sum, segment) => sum + segment.duration, 0);
+}
+
+/** 剔除量占比过高时认为判断不可信，返回空集 */
+function limitByShare(segments: Segment[], ads: Set<number>): Set<number> {
+  if (ads.size === 0) return ads;
+
+  let removed = 0;
+  segments.forEach((segment, index) => {
+    if (ads.has(index)) removed += segment.duration;
+  });
+  if (removed < MIN_SHARE_CHECK_SECONDS) return ads;
+
+  if (removed / MAX_REMOVED_RATIO > totalSeconds(segments)) {
+    return new Set();
+  }
+  return ads;
+}
+
+function findAdIndexes(segments: Segment[]): Set<number> {
+  const marked = markedAdIndexes(segments);
+  return limitByShare(
+    segments,
+    marked.size > 0 ? marked : inferredAdIndexes(segments)
+  );
 }
 
 function rewriteTargetDuration(content: string): string {

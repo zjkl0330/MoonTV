@@ -20,6 +20,8 @@ interface UsePlayProgressOptions {
   detailRef: React.MutableRefObject<any>;
   episodeIndexRef: React.MutableRefObject<number>;
   searchTitle: string;
+  /** 无痕模式：不写播放记录 */
+  isIncognito?: () => boolean;
 }
 
 /**
@@ -33,11 +35,14 @@ export function usePlayProgress({
   detailRef,
   episodeIndexRef,
   searchTitle,
+  isIncognito,
 }: UsePlayProgressOptions) {
   const lastSaveTimeRef = useRef<number>(0);
   const intervalMsRef = useRef(getProgressSaveIntervalMs());
 
   const save = useCallback(async () => {
+    if (isIncognito?.()) return;
+
     const source = sourceRef.current;
     const id = idRef.current;
     const title = titleRef.current;

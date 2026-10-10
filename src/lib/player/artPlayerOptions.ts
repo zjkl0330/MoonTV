@@ -4,7 +4,8 @@ import Hls from 'hls.js';
 
 import { AdFilteringHlsLoader } from './m3u8AdFilter';
 
-export const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+// 对齐 Kazumi 的倍速区间（0.25x ~ 3.0x）
+export const PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 
 /** 设置面板里去广告条目的 name，用于命中统计回写 */
 export const AD_FILTER_SETTING_NAME = '去广告';
@@ -29,6 +30,9 @@ const LOADING_ICON =
 
 const NEXT_EPISODE_ICON =
   '<i class="art-icon flex"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" fill="currentColor"/></svg></i>';
+
+const COPY_LINK_ICON =
+  '<i class="art-icon flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10.59 13.41a4 4 0 0 1 0-5.66l2.83-2.83a4 4 0 1 1 5.66 5.66l-1.42 1.41" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M13.41 10.59a4 4 0 0 0 0 5.66l-2.83 2.83a4 4 0 1 1-5.66-5.66l1.42-1.41" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></i>';
 
 /**
  * 保证视频元素带有当前地址，并开启远程播放（AirPlay / Cast）。
@@ -163,6 +167,8 @@ interface BuildArtPlayerOptionsParams {
   volume: number;
   settings: any[];
   onNextEpisode: () => void;
+  /** 复制当前播放直链，交给 PotPlayer / VLC 等外部播放器 */
+  onCopySourceUrl: () => void;
   onHlsUnrecoverable: (data: any) => void;
 }
 
@@ -178,6 +184,7 @@ export function buildArtPlayerOptions({
   volume,
   settings,
   onNextEpisode,
+  onCopySourceUrl,
   onHlsUnrecoverable,
 }: BuildArtPlayerOptionsParams): any {
   return {
@@ -232,6 +239,15 @@ export function buildArtPlayerOptions({
         tooltip: '播放下一集',
         click: function () {
           onNextEpisode();
+        },
+      },
+      {
+        position: 'right',
+        index: 11,
+        html: COPY_LINK_ICON,
+        tooltip: '复制播放地址',
+        click: function () {
+          onCopySourceUrl();
         },
       },
     ],

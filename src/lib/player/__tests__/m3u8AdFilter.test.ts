@@ -226,6 +226,72 @@ describe('filterAds：按不连续块推断广告', () => {
   });
 });
 
+describe('filterAds：宁可不删也不丢正片', () => {
+  it('源漏打 CUE-IN 时按声明时长收口，不吃掉后面的正片', () => {
+    const lines = ['#EXTM3U', '#EXT-X-TARGETDURATION:60'];
+    for (let i = 0; i < 5; i++) lines.push('#EXTINF:60,', `m-${i}.ts`);
+    lines.push('#EXT-X-CUE-OUT:30');
+    for (let i = 0; i < 5; i++) lines.push('#EXTINF:60,', `tail-${i}.ts`);
+    lines.push('#EXT-X-ENDLIST');
+
+    const result = filterAds(lines.join('\n'));
+
+    // 60 秒的分片不可能属于 30 秒的广告，整段保留
+    expect(result.removedSegments).toBe(0);
+    for (let i = 0; i < 5; i++) {
+      expect(result.content).toContain(`tail-${i}.ts`);
+    }
+  });
+
+  it('广告块后的短尾块是片尾正片，不能一起删', () => {
+    const source = playlist(
+      [
+        segments('main', 30, 60),
+        '#EXT-X-DISCONTINUITY\n',
+        segments('ad', 2, 15),
+        '#EXT-X-DISCONTINUITY\n',
+        segments('ending', 2, 20),
+      ].join('\n')
+    );
+
+    const result = filterAds(source);
+
+    expect(result.content).not.toContain('ad-0.ts');
+    expect(result.content).toContain('ending-0.ts');
+    expect(result.content).toContain('ending-1.ts');
+    expect(result.removedSeconds).toBe(30);
+  });
+
+  it('最后一个不连续块永不按推断剔除', () => {
+    const source = playlist(
+      [
+        segments('main', 30, 60),
+        '#EXT-X-DISCONTINUITY\n',
+        segments('credit', 2, 20),
+      ].join('\n')
+    );
+
+    const result = filterAds(source);
+
+    expect(result.removedSegments).toBe(0);
+    expect(result.content).toContain('credit-1.ts');
+  });
+
+  it('剔除量超过总时长三成时整体放弃', () => {
+    // 200 秒正片后面挂 180 秒无声明时长的 CUE-OUT 块，占比过半不可信
+    const source = playlist(
+      [segments('main', 20, 10), '#EXT-X-CUE-OUT', segments('ad', 6, 30)].join(
+        '\n'
+      )
+    );
+
+    const result = filterAds(source);
+
+    expect(result.removedSegments).toBe(0);
+    expect(result.content).toBe(source);
+  });
+});
+
 describe('filterAds：安全性', () => {
   it('不会把整个列表清空', () => {
     const source = playlist(

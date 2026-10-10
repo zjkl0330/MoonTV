@@ -4,6 +4,7 @@
 // 这里补上鼠标端的音量/亮度拖动、双击全屏与长按倍速。
 
 import { getPlayerOsd } from './playerOsd';
+import { getBrightness, setBrightness } from './videoFilter';
 
 const DRAG_THRESHOLD = 6;
 const LONG_PRESS_MS = 400;
@@ -19,11 +20,6 @@ const CONTROL_SELECTOR =
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
-
-function readBrightness(video: HTMLVideoElement): number {
-  const matched = /brightness\(\s*([\d.]+)\s*\)/.exec(video.style.filter || '');
-  return matched ? parseFloat(matched[1]) : 1;
-}
 
 /**
  * 给播放器画面区域绑定鼠标手势，返回解绑函数。
@@ -76,7 +72,7 @@ export function attachMouseGestures(player: any): () => void {
     startX = event.clientX;
     startY = event.clientY;
     startVolume = player.volume ?? 0.7;
-    startBrightness = readBrightness(video);
+    startBrightness = getBrightness(video);
 
     longPressTimer = setTimeout(() => {
       if (dragState !== 'pending') return;
@@ -126,7 +122,7 @@ export function attachMouseGestures(player: any): () => void {
       BRIGHTNESS_MIN,
       BRIGHTNESS_MAX
     );
-    video.style.filter = `brightness(${brightness.toFixed(2)})`;
+    setBrightness(video, brightness);
     osd.show(
       `亮度 ${Math.round(brightness * 100)}`,
       (brightness - BRIGHTNESS_MIN) / (BRIGHTNESS_MAX - BRIGHTNESS_MIN)

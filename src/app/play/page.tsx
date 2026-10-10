@@ -22,6 +22,14 @@ import {
   adFilterTooltip,
   describeHlsError,
 } from '@/lib/player/artPlayerOptions';
+import { getPlayerOsd } from '@/lib/player/playerOsd';
+import {
+  applyObjectFit,
+  OBJECT_FIT_OPTIONS,
+  objectFitLabel,
+  readObjectFit,
+  saveObjectFit,
+} from '@/lib/player/playerViewPrefs';
 import {
   findFasterSource,
   MeasuredSource,
@@ -37,6 +45,11 @@ import { useArtPlayer } from '@/lib/player/useArtPlayer';
 import { useKeyboardShortcuts } from '@/lib/player/useKeyboardShortcuts';
 import { usePlayProgress } from '@/lib/player/usePlayProgress';
 import { useSkipIntro } from '@/lib/player/useSkipIntro';
+import {
+  readEnhancePreference,
+  saveEnhancePreference,
+  setEnhance,
+} from '@/lib/player/videoFilter';
 import { SearchResult } from '@/lib/types';
 import { processImageUrl } from '@/lib/utils';
 
@@ -201,6 +214,15 @@ function PlayPageClient() {
   } | null>(null);
   // 快捷键说明面板
   const [showShortcuts, setShowShortcuts] = useState(false);
+  // 无痕模式：本页不写播放记录
+  const [incognito, setIncognito] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('enable_incognito') === 'true';
+  });
+  const incognitoRef = useRef(incognito);
+  useEffect(() => {
+    incognitoRef.current = incognito;
+  }, [incognito]);
 
   // 折叠状态（仅在 lg 及以上屏幕有效）
   const [isEpisodeSelectorCollapsed, setIsEpisodeSelectorCollapsed] =
@@ -242,6 +264,7 @@ function PlayPageClient() {
     detailRef,
     episodeIndexRef: currentEpisodeIndexRef,
     searchTitle,
+    isIncognito: () => incognitoRef.current,
   });
 
   // -----------------------------------------------------------------------------
@@ -698,6 +721,46 @@ function PlayPageClient() {
     return newVal;
   };
 
+  /** 开关无痕模式：开启时把这条影片已写入的记录清掉，否则名不副实 */
+  const toggleIncognito = async (): Promise<boolean> => {
+    const newVal = !incognito;
+    setIncognito(newVal);
+    try {
+      localStorage.setItem('enable_incognito', String(newVal));
+    } catch (_) {
+      // ignore
+    }
+
+    if (newVal && currentSourceRef.current && currentIdRef.current) {
+      try {
+        await deletePlayRecord(currentSourceRef.current, currentIdRef.current);
+      } catch (err) {
+        console.error('清除播放记录失败:', err);
+      }
+    }
+
+    return newVal;
+  };
+
+  /** 复制当前播放直链，粘给 PotPlayer / VLC 等外部播放器 */
+  const copySourceUrl = async () => {
+    const player = artPlayerRef.current;
+    const url = videoUrl || player?.url || '';
+    if (!url) return;
+
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(url);
+      copied = true;
+    } catch (err) {
+      console.warn('剪贴板写入失败:', err);
+    }
+
+    getPlayerOsd(player).show(
+      copied ? '播放地址已复制' : '复制失败，请手动选取'
+    );
+  };
+
   // 倒计时走完就切下一集；期间手动切集或取消会清掉状态
   useEffect(() => {
     if (!nextEpisodeCountdown) return;
@@ -844,6 +907,44 @@ function PlayPageClient() {
           return adFilterTooltip(newVal);
         },
       },
+      {
+        name: '画面填充',
+        html: '画面填充',
+        tooltip: objectFitLabel(readObjectFit()),
+        selector: OBJECT_FIT_OPTIONS.map((option) => ({
+          name: option.value,
+          html: option.label,
+          active: option.value === readObjectFit(),
+        })),
+        onSelect(item: any) {
+          const mode = applyObjectFit(artPlayerRef.current?.video, item?.name);
+          saveObjectFit(mode);
+          return objectFitLabel(mode);
+        },
+      },
+      {
+        name: '画质增强',
+        html: '画质增强',
+        tooltip: readEnhancePreference()
+          ? '已开启 · 低端设备可能掉帧'
+          : '已关闭',
+        onClick: function () {
+          const newVal = !readEnhancePreference();
+          setEnhance(artPlayerRef.current?.video, newVal);
+          saveEnhancePreference(newVal);
+          return newVal ? '已开启 · 低端设备可能掉帧' : '已关闭';
+        },
+      },
+      {
+        name: '无痕模式',
+        html: '无痕模式',
+        tooltip: incognito ? '已开启' : '已关闭',
+        onClick: function () {
+          const newVal = !incognito;
+          void toggleIncognito();
+          return newVal ? '已开启' : '已关闭';
+        },
+      },
       ...buildSkipSettings(),
       ...buildSubtitleSettings(() => artPlayerRef.current),
       {
@@ -876,6 +977,7 @@ function PlayPageClient() {
       saveProgressOnTick();
     },
     onNextEpisode: () => handleNextEpisode(),
+    onCopySourceUrl: () => void copySourceUrl(),
     onEnded: () => {
       const d = detailRef.current;
       const idx = currentEpisodeIndexRef.current;

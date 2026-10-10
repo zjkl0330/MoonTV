@@ -13,8 +13,10 @@ import {
 } from './artPlayerOptions';
 import { subscribeAdsFiltered } from './m3u8AdFilter';
 import { attachMouseGestures } from './playerGestures';
+import { applyObjectFit, readObjectFit } from './playerViewPrefs';
 import { bindQualityMenu } from './qualityMenu';
 import { attachSubtitleDrop } from './subtitleLoader';
+import { readEnhancePreference, setEnhance } from './videoFilter';
 
 const VOLUME_KEY = 'player_volume';
 const PLAYBACK_RATE_KEY = 'player_playback_rate';
@@ -56,6 +58,8 @@ interface UseArtPlayerParams {
   /** video:timeupdate，用于跳过片头片尾与限频保存进度 */
   onTick: (player: any) => void;
   onNextEpisode: () => void;
+  /** 复制当前播放直链，交给外部播放器 */
+  onCopySourceUrl: () => void;
   /** 一集播放结束，由调用方决定是否连播 */
   onEnded: () => void;
   /** 可播放后隐藏换源遮罩 */
@@ -170,6 +174,7 @@ export function useArtPlayer(params: UseArtPlayerParams) {
           volume: lastVolumeRef.current,
           settings: state.buildSettings(),
           onNextEpisode: () => paramsRef.current.onNextEpisode(),
+          onCopySourceUrl: () => paramsRef.current.onCopySourceUrl(),
           onHlsUnrecoverable: (data: any) => {
             paramsRef.current.onSourceBroken(playerRef.current, data);
           },
@@ -177,6 +182,8 @@ export function useArtPlayer(params: UseArtPlayerParams) {
       );
 
       const player = playerRef.current;
+      applyObjectFit(player.video as HTMLVideoElement, readObjectFit());
+      setEnhance(player.video as HTMLVideoElement, readEnhancePreference());
       disposersRef.current = [
         attachMouseGestures(player),
         attachSubtitleDrop(player),
