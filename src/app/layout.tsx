@@ -7,9 +7,11 @@ import './globals.css';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
 import { getConfig } from '@/lib/config';
+import { NO_MODULE_NOTICE } from '@/lib/legacy/no-module-notice';
 import RuntimeConfig from '@/lib/runtime';
 
 import { GlobalErrorIndicator } from '../components/GlobalErrorIndicator';
+import { LegacySupport } from '../components/LegacySupport';
 import { SiteProvider } from '../components/SiteProvider';
 import { ThemeProvider } from '../components/ThemeProvider';
 
@@ -102,6 +104,11 @@ export default async function RootLayout({
             __html: `window.RUNTIME_CONFIG = ${JSON.stringify(runtimeConfig)};`,
           }}
         />
+        {/* 不支持 ES Module 的浏览器：给出可读提示，而不是一片白屏 */}
+        <script
+          noModule
+          dangerouslySetInnerHTML={{ __html: NO_MODULE_NOTICE }}
+        />
       </head>
       <body
         className={`${inter.className} min-h-screen bg-white text-gray-900 dark:bg-black dark:text-gray-200`}
@@ -115,6 +122,7 @@ export default async function RootLayout({
           <SiteProvider siteName={siteName} announcement={announcement}>
             {children}
             <GlobalErrorIndicator />
+            <LegacySupport />
           </SiteProvider>
         </ThemeProvider>
       </body>

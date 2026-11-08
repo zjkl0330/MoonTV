@@ -17,6 +17,7 @@ import {
   saveSkipConfig,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
+import { copyText } from '@/lib/legacy/clipboard';
 import {
   AD_FILTER_SETTING_NAME,
   adFilterTooltip,
@@ -750,8 +751,8 @@ function PlayPageClient() {
 
     let copied = false;
     try {
-      await navigator.clipboard.writeText(url);
-      copied = true;
+      // 老浏览器没有 navigator.clipboard，内部会退回 execCommand
+      copied = await copyText(url);
     } catch (err) {
       console.warn('剪贴板写入失败:', err);
     }

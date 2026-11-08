@@ -83,6 +83,13 @@ module.exports = {
   },
   overrides: [
     {
+      // 测试文件里 describe/it/expect 来自 jest 全局，不属于浏览器/Node 环境
+      files: ['**/__tests__/**/*.{js,jsx,ts,tsx}', '**/*.test.{js,jsx,ts,tsx}'],
+      env: {
+        jest: true,
+      },
+    },
+    {
       files: ['deploy.js', 'scripts/fix-function-names.js'],
       rules: {
         '@typescript-eslint/no-var-requires': 'off',

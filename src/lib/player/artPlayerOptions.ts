@@ -2,6 +2,12 @@
 
 import Hls from 'hls.js';
 
+import {
+  parseOlderDeviceHint,
+  readBrowserEnv,
+  shouldUseHlsWorker,
+} from '@/lib/legacy/browser-support';
+
 import { AdFilteringHlsLoader } from './m3u8AdFilter';
 
 // 对齐 Kazumi 的倍速区间（0.25x ~ 3.0x）
@@ -65,6 +71,26 @@ interface AttachHlsOptions {
 }
 
 /**
+ * hls.js 是否用 Web Worker 解码。
+ *
+ * 老 Android WebView（4.x/5.x）和 Chrome 53 以下的 blob worker 经常直接抛错，
+ * 关掉 worker 走主线程费点 CPU，但能播。
+ */
+function resolveHlsWorkerFlag(): boolean {
+  try {
+    const env = readBrowserEnv();
+    const hint =
+      typeof navigator === 'undefined'
+        ? undefined
+        : parseOlderDeviceHint(navigator.userAgent);
+    return shouldUseHlsWorker(env, hint);
+  } catch {
+    // 探测本身出错就别冒险，老设备上关 worker 更稳
+    return false;
+  }
+}
+
+/**
  * 用 hls.js 接管 m3u8 播放，并在致命错误时有限次自愈。
  */
 export function attachHlsSource(
@@ -86,7 +112,8 @@ export function attachHlsSource(
       video.play?.().catch(() => undefined);
       return;
     }
-    onUnrecoverable({ details: 'hlsUnsupported' });
+    // 既没有 MSE 也没有原生 HLS：老浏览器上很常见，明确上报而不是黑屏
+    onUnrecoverable({ details: 'hlsUnsupported', reason: 'no-mse' });
     return;
   }
 
@@ -96,7 +123,7 @@ export function attachHlsSource(
 
   const hls = new Hls({
     debug: false, // 关闭日志
-    enableWorker: true, // WebWorker 解码，降低主线程压力
+    enableWorker: resolveHlsWorkerFlag(), // 老 Android WebView 上 blob worker 会崩，按能力决定
     lowLatencyMode: true, // 开启低延迟 LL-HLS
 
     /* 缓冲/内存相关 */
@@ -145,6 +172,14 @@ export function describeHlsError(data: any): string {
   const detail = String(data?.details || '');
 
   if (detail.includes('hlsUnsupported') || detail.includes('hlsUnavailable')) {
+    // 区分「库没加载」和「浏览器天生不支持」，老浏览器上后者占多数
+    try {
+      if (!readBrowserEnv().mse) {
+        return '当前浏览器不支持在线播放（缺少 MediaSource），请升级浏览器或改用系统播放器';
+      }
+    } catch {
+      /* 探测失败就走通用文案 */
+    }
     return '当前浏览器不支持该播放方式';
   }
   if (
