@@ -52,6 +52,10 @@ const GRID_COLS = 16;
 const GRID_ROWS = 9;
 const HISTORY_SIZE = 6;
 const MAX_MASK_RECTS = 6;
+// Artplayer 的 .art-video 是 z-index:10，遮罩必须高于它才看得见
+const MASK_LAYER_Z_INDEX = 15;
+// 框选时提到控件和设置面板之上，保证能收到指针事件
+const MASK_PICK_Z_INDEX = 100;
 
 const MODES: OverlayMaskMode[] = ['off', 'smart', 'manual'];
 const SENSITIVITIES: MaskSensitivity[] = ['low', 'medium', 'high'];
@@ -69,7 +73,7 @@ export function normalizeMaskSensitivity(value: unknown): MaskSensitivity {
 }
 
 export function overlayMaskLabel(mode: OverlayMaskMode): string {
-  if (mode === 'smart') return '智能打码';
+  if (mode === 'smart') return '自动打码';
   if (mode === 'manual') return '手动打码';
   return '关闭';
 }
@@ -94,8 +98,9 @@ export function overlayMaskTooltip(
 }
 
 export function readOverlayMaskMode(): OverlayMaskMode {
-  if (typeof window === 'undefined') return 'off';
-  return normalizeOverlayMaskMode(localStorage.getItem(OVERLAY_MASK_MODE_KEY));
+  if (typeof window === 'undefined') return 'smart';
+  const saved = localStorage.getItem(OVERLAY_MASK_MODE_KEY);
+  return saved === null ? 'smart' : normalizeOverlayMaskMode(saved);
 }
 
 export function saveOverlayMaskMode(value: unknown): OverlayMaskMode {
@@ -593,7 +598,7 @@ export class OverlayAdMasker {
     this.layer.style.inset = '0';
     this.layer.style.overflow = 'hidden';
     this.layer.style.pointerEvents = 'none';
-    this.layer.style.zIndex = '2';
+    this.layer.style.zIndex = String(MASK_LAYER_Z_INDEX);
 
     this.sampleCanvas = document.createElement('canvas');
     this.sampleCanvas.width = 96;
@@ -736,6 +741,7 @@ export class OverlayAdMasker {
     this.layer.textContent = '';
     mapped.forEach((rect) => {
       const mask = document.createElement('div');
+      mask.className = 'moontv-ad-mask';
       mask.style.position = 'absolute';
       mask.style.left = `${rect.x * 100}%`;
       mask.style.top = `${rect.y * 100}%`;
@@ -782,7 +788,7 @@ export class OverlayAdMasker {
     this.layer.style.cursor = 'crosshair';
     this.layer.style.touchAction = 'none';
     // 提到控件遮罩之上，保证拖动框选时能收到指针事件
-    this.layer.style.zIndex = '5';
+    this.layer.style.zIndex = String(MASK_PICK_Z_INDEX);
 
     this.layer.addEventListener('pointerdown', this.onPickDown);
     this.layer.addEventListener('pointermove', this.onPickMove);
@@ -804,7 +810,7 @@ export class OverlayAdMasker {
     this.layer.style.pointerEvents = 'none';
     this.layer.style.cursor = '';
     this.layer.style.touchAction = '';
-    this.layer.style.zIndex = '2';
+    this.layer.style.zIndex = String(MASK_LAYER_Z_INDEX);
 
     this.layer.removeEventListener('pointerdown', this.onPickDown);
     this.layer.removeEventListener('pointermove', this.onPickMove);

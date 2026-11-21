@@ -243,7 +243,7 @@ export function buildPlayerSettings(ctx: PlayerSettingsContext): any[] {
         },
         {
           name: 'mask-smart',
-          html: '智能打码',
+          html: '自动打码（智能）',
           active: readOverlayMaskMode() === 'smart',
         },
         {

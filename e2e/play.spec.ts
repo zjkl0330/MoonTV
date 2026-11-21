@@ -77,3 +77,50 @@ test('搜索 → 播放器冒烟：结果可点击、播放器与设置面板正
   await expect(page.getByText('兼容锐化', { exact: true })).toBeVisible();
   await expect(page.getByText('GPU 锐化')).toBeVisible();
 });
+
+test('手动打码区域显示在视频画面之上', async ({ page, context }) => {
+  await context.addInitScript(() => {
+    try {
+      localStorage.setItem('player_overlay_mask_mode', 'manual');
+      localStorage.setItem(
+        'player_overlay_manual_masks:e2e-source',
+        JSON.stringify([{ x: 0.1, y: 0.1, w: 0.3, h: 0.15, source: 'manual' }])
+      );
+    } catch {
+      /* ignore */
+    }
+  });
+
+  await page.route('**/api/search**', (route) =>
+    route.fulfill({ json: { results: [video] } })
+  );
+  await page.route('**/api/detail**', (route) =>
+    route.fulfill({ json: video })
+  );
+  await page.route('**/e2e-fixture.m3u8', (route) =>
+    route.fulfill({
+      path: 'e2e/fixtures/e2e.m3u8',
+      contentType: 'application/vnd.apple.mpegurl',
+    })
+  );
+  await page.route('**/seg*.bin', (route) =>
+    route.fulfill({
+      path: 'e2e/fixtures/seg0.bin',
+      contentType: 'video/mp2t',
+    })
+  );
+
+  await page.goto('/play?source=e2e-source&id=e2e-1&title=测试影片&year=2026');
+  await expect(page.locator('.art-video-player')).toBeVisible();
+  await expect(page.getByText('🔄 视频加载中...')).toBeHidden({
+    timeout: 20_000,
+  });
+
+  const mask = page.locator('.moontv-ad-mask').first();
+  await expect(mask).toBeVisible();
+
+  const zIndex = await page
+    .locator('.moontv-ad-mask-layer')
+    .evaluate((element) => Number(getComputedStyle(element).zIndex));
+  expect(zIndex).toBeGreaterThan(10);
+});
