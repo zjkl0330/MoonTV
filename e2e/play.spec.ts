@@ -124,3 +124,129 @@ test('手动打码区域显示在视频画面之上', async ({ page, context }) 
     .evaluate((element) => Number(getComputedStyle(element).zIndex));
   expect(zIndex).toBeGreaterThan(10);
 });
+
+test('去广告会剔除 m3u8 广告分片', async ({ page }) => {
+  const logs: string[] = [];
+  page.on('console', (message) => logs.push(message.text()));
+
+  const adVideo = {
+    ...video,
+    id: 'e2e-ad-1',
+    source: 'e2e-ad-source',
+    source_name: 'E2E 广告源',
+    episodes: ['/e2e-ad.m3u8'],
+  };
+
+  await page.route('**/api/search**', (route) =>
+    route.fulfill({ json: { results: [adVideo] } })
+  );
+  await page.route('**/api/detail**', (route) =>
+    route.fulfill({ json: adVideo })
+  );
+  await page.route('**/e2e-ad.m3u8', (route) =>
+    route.fulfill({
+      path: 'e2e/fixtures/ad.m3u8',
+      contentType: 'application/vnd.apple.mpegurl',
+    })
+  );
+  await page.route('**/seg*.bin', (route) =>
+    route.fulfill({
+      path: 'e2e/fixtures/seg0.bin',
+      contentType: 'video/mp2t',
+    })
+  );
+  await page.route('**/ad*.bin', (route) =>
+    route.fulfill({
+      path: 'e2e/fixtures/seg0.bin',
+      contentType: 'video/mp2t',
+    })
+  );
+
+  await page.goto(
+    '/play?source=e2e-ad-source&id=e2e-ad-1&title=测试影片&year=2026'
+  );
+  await expect(page.locator('.art-video-player')).toBeVisible();
+  await expect(page.getByText('🔄 视频加载中...')).toBeHidden({
+    timeout: 20_000,
+  });
+
+  await expect
+    .poll(() => logs.join('\n'), { timeout: 15_000 })
+    .toContain('已剔除 2 个广告分片');
+
+  await page.locator('[aria-label="显示设置"]').click();
+  await expect(page.getByText(/已剔除 2 段/)).toBeVisible();
+});
+
+test('去广告开关重新加载播放器后生效', async ({ page, context }) => {
+  await context.addInitScript(() => {
+    try {
+      localStorage.setItem('enable_blockad', 'false');
+    } catch {
+      /* ignore */
+    }
+  });
+
+  const logs: string[] = [];
+  page.on('console', (message) => logs.push(message.text()));
+
+  const adVideo = {
+    ...video,
+    id: 'e2e-ad-2',
+    source: 'e2e-ad-source',
+    source_name: 'E2E 广告源',
+    episodes: ['/e2e-ad.m3u8'],
+  };
+
+  await page.route('**/api/search**', (route) =>
+    route.fulfill({ json: { results: [adVideo] } })
+  );
+  await page.route('**/api/detail**', (route) =>
+    route.fulfill({ json: adVideo })
+  );
+  await page.route('**/e2e-ad.m3u8', (route) =>
+    route.fulfill({
+      path: 'e2e/fixtures/ad.m3u8',
+      contentType: 'application/vnd.apple.mpegurl',
+    })
+  );
+  await page.route('**/seg*.bin', (route) =>
+    route.fulfill({
+      path: 'e2e/fixtures/seg0.bin',
+      contentType: 'video/mp2t',
+    })
+  );
+  await page.route('**/ad*.bin', (route) =>
+    route.fulfill({
+      path: 'e2e/fixtures/seg0.bin',
+      contentType: 'video/mp2t',
+    })
+  );
+
+  await page.goto(
+    '/play?source=e2e-ad-source&id=e2e-ad-2&title=测试影片&year=2026'
+  );
+  await expect(page.locator('.art-video-player')).toBeVisible();
+  await expect(page.getByText('🔄 视频加载中...')).toBeHidden({
+    timeout: 20_000,
+  });
+
+  // 初始关闭时不应有剔除日志
+  await page.waitForTimeout(2000);
+  expect(logs.join('\n')).not.toContain('已剔除');
+
+  // 打开设置并开启去广告，播放器会重建
+  await page.locator('[aria-label="显示设置"]').click();
+  await page.getByText('去广告').click();
+  await expect(page.locator('.art-video-player')).toBeVisible();
+  await expect(page.getByText('🔄 视频加载中...')).toBeHidden({
+    timeout: 20_000,
+  });
+
+  await expect
+    .poll(() => logs.join('\n'), { timeout: 15_000 })
+    .toContain('已剔除 2 个广告分片');
+
+  await page.locator('[aria-label="显示设置"]').click();
+  await expect(page.getByText(/已剔除 2 段/)).toBeVisible();
+});
