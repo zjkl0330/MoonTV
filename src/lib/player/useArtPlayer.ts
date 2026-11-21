@@ -25,6 +25,7 @@ import {
   saveManualMasks,
 } from './overlayAdMask';
 import { attachMouseGestures } from './playerGestures';
+import { keepSettingSubmenuOpen } from './playerSettings';
 import { applyObjectFit, readObjectFit } from './playerViewPrefs';
 import { bindQualityMenu } from './qualityMenu';
 import { attachSubtitleDrop } from './subtitleLoader';
@@ -237,6 +238,7 @@ export function useArtPlayer(params: UseArtPlayerParams) {
       );
 
       const player = playerRef.current;
+      keepSettingSubmenuOpen(player);
       applyObjectFit(player.video as HTMLVideoElement, readObjectFit());
       setEnhanceMode(player.video as HTMLVideoElement, readEnhanceMode());
       mountOverlayMask(player);

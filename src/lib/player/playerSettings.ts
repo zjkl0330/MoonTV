@@ -68,6 +68,31 @@ function deviceTierLabel(): string {
 }
 
 /**
+ * Artplayer 默认在选中二级项后回到上一级菜单。
+ * 这里保留子菜单，方便用户连续调整（例如先改画质增强再改清晰度上限）。
+ */
+export function keepSettingSubmenuOpen(player: any): void {
+  const setting = player?.setting;
+  if (!setting || typeof setting.check !== 'function') return;
+  if (setting.__moontvKeepSubmenu) return;
+
+  const originalCheck = setting.check.bind(setting);
+  setting.check = function (item: any) {
+    if (!item) return originalCheck(item);
+
+    // check 内部最后一步是 render(parent)，临时屏蔽即可保留当前子菜单
+    const originalRender = this.render;
+    this.render = () => undefined;
+    try {
+      originalCheck(item);
+    } finally {
+      this.render = originalRender;
+    }
+  };
+  setting.__moontvKeepSubmenu = true;
+}
+
+/**
  * 组装 Artplayer 设置面板。
  * 播放页只负责状态与回调，这里集中处理各能力条的展示与持久化。
  */

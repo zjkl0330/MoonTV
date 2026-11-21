@@ -68,4 +68,12 @@ test('搜索 → 播放器冒烟：结果可点击、播放器与设置面板正
   await page.locator('[aria-label="显示设置"]').click();
   await expect(page.getByText('画质增强')).toBeVisible();
   await expect(page.getByText('悬浮广告打码')).toBeVisible();
+
+  // 二级设置项应展开子菜单，选中后仍停留在子菜单
+  await page.getByText('画质增强').click();
+  await expect(page.getByText('GPU 锐化')).toBeVisible();
+  await expect(page.getByText('兼容锐化', { exact: true })).toBeVisible();
+  await page.getByText('兼容锐化', { exact: true }).click();
+  await expect(page.getByText('兼容锐化', { exact: true })).toBeVisible();
+  await expect(page.getByText('GPU 锐化')).toBeVisible();
 });
