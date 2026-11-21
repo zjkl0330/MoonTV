@@ -27,6 +27,8 @@ COPY . .
 RUN find ./src -type f -name "route.ts" -print0 \
   | xargs -0 sed -i "s/export const runtime = 'edge';/export const runtime = 'nodejs';/g"
 ENV DOCKER_ENV=true
+# 运行镜像使用 standalone 输出，Docker 构建时必须显式开启
+ENV NEXT_OUTPUT=standalone
 
 # For Docker builds, force dynamic rendering to read runtime environment variables.
 RUN sed -i "/const inter = Inter({ subsets: \['latin'] });/a export const dynamic = 'force-dynamic';" src/app/layout.tsx
