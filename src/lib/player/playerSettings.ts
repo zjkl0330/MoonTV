@@ -2,6 +2,8 @@
 
 import type { MutableRefObject } from 'react';
 
+import { CURRENT_VERSION } from '@/lib/version';
+
 import { AD_FILTER_SETTING_NAME, adFilterTooltip } from './artPlayerOptions';
 import {
   applyQualityCap,
@@ -326,6 +328,13 @@ export function buildPlayerSettings(ctx: PlayerSettingsContext): any[] {
       onClick() {
         clearSkipConfig();
         return '';
+      },
+    },
+    {
+      html: `版本 ${CURRENT_VERSION}`,
+      tooltip: '当前前端构建版本，用于确认是否命中最新部署',
+      onClick() {
+        return CURRENT_VERSION;
       },
     },
   ];
