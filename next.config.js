@@ -35,6 +35,15 @@ const nextConfig = {
           },
         ],
       },
+      {
+        source: '/sw-v2.js',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+        ],
+      },
     ];
   },
 
@@ -83,6 +92,8 @@ const withPWA = require('next-pwa')({
   disable: process.env.NODE_ENV === 'development',
   register: true,
   skipWaiting: true,
+  // 换一个 SW 文件名，绕过旧版 /sw.js 被登录重定向后留下的缓存
+  sw: 'sw-v2.js',
 });
 
 module.exports = withPWA(nextConfig);

@@ -126,6 +126,7 @@ function shouldSkipAuth(pathname: string): boolean {
     // PWA 资源必须公开，否则 Service Worker 会被登录重定向卡住，
     // 浏览器会一直使用旧缓存，线上更新无法生效
     '/sw.js',
+    '/sw-v2.js',
     '/workbox-',
     '/registerSW.js',
     '/fallback-',

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-const E2E_PASSWORD = 'moontv-e2e-password';
-const BASE_URL = 'http://127.0.0.1:3000';
+const E2E_PASSWORD = process.env.E2E_PASSWORD || 'moontv-e2e-password';
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
 
 const video = {
   id: 'e2e-1',
