@@ -222,6 +222,11 @@ networks:
 | NEXT_PUBLIC_IMAGE_PROXY           | 默认的浏览器端图片代理                       | url prefix                       | (空)                                                                                                                       |
 | NEXT_PUBLIC_DOUBAN_PROXY          | 默认的浏览器端豆瓣数据代理                   | url prefix                       | (空)                                                                                                                       |
 | NEXT_PUBLIC_DISABLE_YELLOW_FILTER | 关闭色情内容过滤                             | true/false                       | false                                                                                                                      |
+| BILIBILI_RELAY                    | B 站第三方聚合服务地址（推荐）               | url                              | (空)                                                                                                                       |
+| BILIBILI_RELAY_KEY                | 第三方聚合服务的鉴权 Key                     | 任意字符串                       | (空)                                                                                                                       |
+| BILIBILI_STREAM_HOSTS             | 额外允许代理的媒体域名，逗号分隔             | host1,host2                      | (空)                                                                                                                       |
+| BILIBILI_COOKIE                   | 直连官方接口时使用的 Cookie（可选）          | cookie 字符串                    | (空)                                                                                                                       |
+| BILIBILI_DIRECT                   | 是否允许直连官方接口                         | true/false                       | false                                                                                                                      |
 
 ## 配置说明
 
@@ -270,6 +275,40 @@ MoonTV 支持标准的苹果 CMS V10 API 格式。
 
 修改后 **无需重新构建**，服务会在启动时读取一次。
 
+## 播放体验与 B 站接入
+
+### 画质与低端设备
+
+播放器设置面板新增：
+
+- **画质增强**：自动 / GPU 锐化 / 兼容锐化 / 关闭。GPU 模式通过 WebGL 片元着色器做 unsharp mask，帧率持续低于 20fps 或 WebGL 上下文丢失时自动回退到兼容模式。
+- **清晰度上限**：不限制 / 1080P / 720P / 480P。低端设备默认压在 720P 以内。
+- **性能模式**：自动 / 流畅优先 / 画质优先。流畅模式会缩短 hls.js 缓冲、关闭低延迟模式、限制解码尺寸，并减少 RAF 时间更新。
+
+### 悬浮广告打码
+
+烧录在画面里的角标/悬浮广告无法通过 m3u8 分片剔除，播放器设置里新增：
+
+- **智能打码**：检测「画面在动、局部长时间不动」的网格区域，用模糊/压暗遮住。属于启发式方案，低敏感度更保守；可能误伤烧录字幕，可切到手动模式。
+- **手动框选**：直接拖动鼠标框选广告区域，按片源保存在本地。
+- **打码敏感度 / 清除打码区域**：可随时调整或重置。
+
+### B 站资源
+
+`config.json` 已内置 `bilibili` 源。推荐通过第三方聚合服务接入，配置 `BILIBILI_RELAY` 后即可在搜索中看到 B 站结果。聚合服务需实现：
+
+```text
+GET /search?keyword=xxx   -> { list: [{ bvid, title, pic, pubdate, duration, author, description }] }
+GET /detail?bvid=BVxxx    -> { bvid, title, pic, pubdate, desc, owner, pages: [{ cid, page, part, duration }] }
+GET /play?bvid=&cid=&qn=  -> { url: 'https://...mp4' } 或 { durl: [{ url }] }
+```
+
+播放地址会经本站 `/api/bilibili/stream` 同源代理并补上 Referer，默认只允许代理 B 站 CDN 域名；第三方 CDN 请加入 `BILIBILI_STREAM_HOSTS`。没有第三方服务时，也可用 `BILIBILI_COOKIE` + `BILIBILI_DIRECT=true` 尝试官方接口，但机房 IP 成功率较低。聚合服务返回 MP4 最稳妥。
+
+### 搜索排序
+
+搜索结果支持综合 / 最近发布 / 年份 / 名称排序，以及标准/紧凑两种排列密度；收藏夹支持最近添加 / 年份 / 名称排序。
+
 ## 管理员配置
 
 **该特性目前仅支持通过非 localstorage 存储的部署方式使用**
@@ -292,11 +331,27 @@ MoonTV 支持标准的苹果 CMS V10 API 格式。
 构建目标、polyfill、CSS 降级与验证方式的细节见 [浏览器兼容性.md](./浏览器兼容性.md)。
 一行验证：`pnpm verify:legacy`。
 
+## 开发与验证
+
+```bash
+pnpm dev          # 本地开发
+pnpm typecheck    # TypeScript
+pnpm test         # Jest 单元测试
+pnpm lint         # ESLint
+pnpm test:e2e     # Playwright 播放器冒烟测试
+```
+
+首次运行 E2E 需要安装浏览器：`pnpm exec playwright install --with-deps chromium`。CI 已配置 typecheck / test / lint / build 与 Playwright 冒烟流程。
+
 ## Roadmap
 
 - [x] 深色模式
 - [x] 持久化存储
 - [x] 多账户
+- [x] GPU 画质增强与低端设备降载
+- [x] 悬浮广告智能打码
+- [x] 按发布时间排序 / 多种排列方式
+- [x] B 站第三方聚合接入
 
 ## 安全与隐私提醒
 

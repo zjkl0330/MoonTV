@@ -25,7 +25,8 @@ const clamp = (value: number, min: number, max: number) =>
  * 给播放器画面区域绑定鼠标手势，返回解绑函数。
  */
 export function attachMouseGestures(player: any): () => void {
-  const surface: HTMLElement | undefined = player?.template?.player;
+  const surface: HTMLElement | undefined =
+    player?.template?.$player || player?.template?.player;
   const video: HTMLVideoElement | undefined = player?.video;
   if (!surface || !video) return () => undefined;
 

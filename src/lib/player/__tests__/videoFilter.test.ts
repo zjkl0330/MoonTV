@@ -3,6 +3,7 @@ import {
   ENHANCE_KEY,
   ensureSharpenFilter,
   getBrightness,
+  readEnhanceMode,
   readEnhancePreference,
   saveEnhancePreference,
   setBrightness,
@@ -77,8 +78,9 @@ describe('setBrightness / setEnhance 共享同一份状态', () => {
 describe('画质增强的跨会话记忆', () => {
   afterEach(() => localStorage.clear());
 
-  it('默认关闭', () => {
-    expect(readEnhancePreference()).toBe(false);
+  it('默认自动（高性能设备启用 GPU，低端设备关闭）', () => {
+    expect(readEnhancePreference()).toBe(true);
+    expect(readEnhanceMode()).toBe('auto');
   });
 
   it('开启后写进 localStorage', () => {

@@ -94,6 +94,10 @@ export interface SearchResult {
   desc?: string;
   type_name?: string;
   douban_id?: number;
+  /** 发布时间（毫秒时间戳），采集站 vod_time 解析而来 */
+  publish_time?: number;
+  /** 采集站的更新备注，例如「更新至 12 集」 */
+  remarks?: string;
 }
 
 // 豆瓣数据结构

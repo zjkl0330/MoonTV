@@ -1,6 +1,11 @@
 {
   "cache_time": 7200,
   "api_site": {
+    "bilibili": {
+      "api": "https://api.bilibili.com",
+      "name": "哔哩哔哩",
+      "type": "bilibili"
+    },
     "dyttzy": {
       "api": "http://caiji.dyttzyapi.com/api.php/provide/vod",
       "name": "电影天堂资源",

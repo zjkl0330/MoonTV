@@ -168,7 +168,8 @@ export function buildSubtitleSettings(getPlayer: () => any): any[] {
  * 支持把字幕文件直接拖到画面上，返回解绑函数。
  */
 export function attachSubtitleDrop(player: any): () => void {
-  const surface: HTMLElement | undefined = player?.template?.player;
+  const surface: HTMLElement | undefined =
+    player?.template?.$player || player?.template?.player;
   if (!surface) return () => undefined;
 
   const osd = getPlayerOsd(player);

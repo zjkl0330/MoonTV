@@ -12,6 +12,14 @@ import {
   getSearchHistory,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
+import {
+  type SearchSortMode,
+  readSearchSortMode,
+  saveSearchSortMode,
+  sortGroups,
+  sortModeLabel,
+  sortVideos,
+} from '@/lib/sort';
 import { SearchResult } from '@/lib/types';
 import { yellowWords } from '@/lib/yellow';
 
@@ -46,6 +54,34 @@ function SearchPageClient() {
     return getDefaultAggregate() ? 'agg' : 'all';
   });
 
+  const [sortMode, setSortMode] = useState<SearchSortMode>(() =>
+    readSearchSortMode()
+  );
+  const [density, setDensity] = useState<'standard' | 'compact'>(() => {
+    if (typeof window === 'undefined') return 'standard';
+    return localStorage.getItem('search_layout_density') === 'compact'
+      ? 'compact'
+      : 'standard';
+  });
+
+  const changeDensity = (value: 'standard' | 'compact') => {
+    setDensity(value);
+    try {
+      localStorage.setItem('search_layout_density', value);
+    } catch {
+      /* 隐私模式写不进去 */
+    }
+  };
+
+  const changeSortMode = (value: SearchSortMode) => {
+    setSortMode(saveSearchSortMode(value));
+  };
+
+  const sortedResults = useMemo(
+    () => sortVideos(searchResults, sortMode, searchQuery),
+    [searchResults, sortMode, searchQuery]
+  );
+
   // 聚合后的结果（按标题和年份分组）
   const aggregatedResults = useMemo(() => {
     const map = new Map<string, SearchResult[]>();
@@ -58,39 +94,8 @@ function SearchPageClient() {
       arr.push(item);
       map.set(key, arr);
     });
-    return Array.from(map.entries()).sort((a, b) => {
-      // 优先排序：标题与搜索词完全一致的排在前面
-      const aExactMatch = a[1][0].title
-        .replaceAll(' ', '')
-        .includes(searchQuery.trim().replaceAll(' ', ''));
-      const bExactMatch = b[1][0].title
-        .replaceAll(' ', '')
-        .includes(searchQuery.trim().replaceAll(' ', ''));
-
-      if (aExactMatch && !bExactMatch) return -1;
-      if (!aExactMatch && bExactMatch) return 1;
-
-      // 年份排序
-      if (a[1][0].year === b[1][0].year) {
-        return a[0].localeCompare(b[0]);
-      } else {
-        // 处理 unknown 的情况
-        const aYear = a[1][0].year;
-        const bYear = b[1][0].year;
-
-        if (aYear === 'unknown' && bYear === 'unknown') {
-          return 0;
-        } else if (aYear === 'unknown') {
-          return 1; // a 排在后面
-        } else if (bYear === 'unknown') {
-          return -1; // b 排在后面
-        } else {
-          // 都是数字年份，按数字大小排序（大的在前面）
-          return aYear > bYear ? -1 : 1;
-        }
-      }
-    });
-  }, [searchResults]);
+    return sortGroups(Array.from(map.entries()), sortMode, searchQuery);
+  }, [searchResults, sortMode, searchQuery]);
 
   useEffect(() => {
     // 无搜索参数时聚焦搜索框
@@ -176,33 +181,7 @@ function SearchPageClient() {
           return !yellowWords.some((word: string) => typeName.includes(word));
         });
       }
-      setSearchResults(
-        results.sort((a: SearchResult, b: SearchResult) => {
-          // 优先排序：标题与搜索词完全一致的排在前面
-          const aExactMatch = a.title === query.trim();
-          const bExactMatch = b.title === query.trim();
-
-          if (aExactMatch && !bExactMatch) return -1;
-          if (!aExactMatch && bExactMatch) return 1;
-
-          // 如果都匹配或都不匹配，则按原来的逻辑排序
-          if (a.year === b.year) {
-            return a.title.localeCompare(b.title);
-          } else {
-            // 处理 unknown 的情况
-            if (a.year === 'unknown' && b.year === 'unknown') {
-              return 0;
-            } else if (a.year === 'unknown') {
-              return 1; // a 排在后面
-            } else if (b.year === 'unknown') {
-              return -1; // b 排在后面
-            } else {
-              // 都是数字年份，按数字大小排序（大的在前面）
-              return parseInt(a.year) > parseInt(b.year) ? -1 : 1;
-            }
-          }
-        })
-      );
+      setSearchResults(results);
       setShowResults(true);
     } catch (error) {
       setSearchResults([]);
@@ -271,33 +250,68 @@ function SearchPageClient() {
             </div>
           ) : showResults ? (
             <section className='mb-12'>
-              {/* 标题 + 聚合开关 */}
-              <div className='mb-8 flex items-center justify-between'>
+              {/* 标题 + 排序/排列/聚合 */}
+              <div className='mb-8 flex flex-wrap items-center justify-between gap-3'>
                 <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
                   搜索结果
                 </h2>
-                {/* 聚合开关 */}
-                <label className='flex items-center gap-2 cursor-pointer select-none'>
-                  <span className='text-sm text-gray-700 dark:text-gray-300'>
-                    聚合
-                  </span>
-                  <div className='relative'>
-                    <input
-                      type='checkbox'
-                      className='sr-only peer'
-                      checked={viewMode === 'agg'}
-                      onChange={() =>
-                        setViewMode(viewMode === 'agg' ? 'all' : 'agg')
+                <div className='flex flex-wrap items-center gap-3'>
+                  <label className='flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300'>
+                    <span>排序</span>
+                    <select
+                      value={sortMode}
+                      onChange={(event) =>
+                        changeSortMode(event.target.value as SearchSortMode)
                       }
-                    />
-                    <div className='w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
-                    <div className='absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4'></div>
-                  </div>
-                </label>
+                      className='rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'
+                      aria-label='搜索结果排序方式'
+                    >
+                      <option value='relevance'>
+                        {sortModeLabel('relevance')}
+                      </option>
+                      <option value='latest'>{sortModeLabel('latest')}</option>
+                      <option value='year'>{sortModeLabel('year')}</option>
+                      <option value='title'>{sortModeLabel('title')}</option>
+                    </select>
+                  </label>
+                  <button
+                    onClick={() =>
+                      changeDensity(
+                        density === 'standard' ? 'compact' : 'standard'
+                      )
+                    }
+                    className='rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 shadow-sm transition-colors hover:border-green-400 hover:text-green-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-green-500 dark:hover:text-green-400'
+                    aria-label='切换排列密度'
+                  >
+                    {density === 'standard' ? '标准排列' : '紧凑排列'}
+                  </button>
+                  {/* 聚合开关 */}
+                  <label className='flex items-center gap-2 cursor-pointer select-none'>
+                    <span className='text-sm text-gray-700 dark:text-gray-300'>
+                      聚合
+                    </span>
+                    <div className='relative'>
+                      <input
+                        type='checkbox'
+                        className='sr-only peer'
+                        checked={viewMode === 'agg'}
+                        onChange={() =>
+                          setViewMode(viewMode === 'agg' ? 'all' : 'agg')
+                        }
+                      />
+                      <div className='w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
+                      <div className='absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4'></div>
+                    </div>
+                  </label>
+                </div>
               </div>
               <div
-                key={`search-results-${viewMode}`}
-                className='justify-start grid grid-cols-3 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'
+                key={`search-results-${viewMode}-${density}-${sortMode}`}
+                className={`justify-start grid grid-cols-3 px-0 sm:px-2 ${
+                  density === 'compact'
+                    ? 'gap-x-2 gap-y-8 sm:gap-x-4 sm:gap-y-10 sm:grid-cols-[repeat(auto-fill,minmax(8rem,1fr))]'
+                    : 'gap-x-2 gap-y-14 sm:gap-y-20 sm:gap-x-8 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))]'
+                }`}
               >
                 {viewMode === 'agg'
                   ? aggregatedResults.map(([mapKey, group]) => {
@@ -315,7 +329,7 @@ function SearchPageClient() {
                         </div>
                       );
                     })
-                  : searchResults.map((item) => (
+                  : sortedResults.map((item) => (
                       <div
                         key={`all-${item.source}-${item.id}`}
                         className='w-full'

@@ -41,6 +41,7 @@ export function applyEnvSources(
     if (envSite.api) existing.api = envSite.api;
     if (envSite.name) existing.name = envSite.name;
     if (envSite.detail) existing.detail = envSite.detail;
+    if (envSite.type) existing.type = envSite.type;
     if (envSite.disabled) existing.disabled = true;
   });
 
@@ -72,7 +73,7 @@ function parseEnvSources(rawEnv: string | undefined): OverlayApiSite[] {
   Object.entries(parsed as Record<string, RawEnvSource>).forEach(
     ([key, value]) => {
       const entry = value ?? ({} as RawEnvSource);
-      const { api, name, detail, disabled } = entry;
+      const { api, name, detail, disabled, type } = entry;
 
       if (typeof key !== 'string' || !key.trim()) {
         console.warn(`${ENV_SOURCES_KEY} 中存在空的源 key，已忽略`);
@@ -98,6 +99,7 @@ function parseEnvSources(rawEnv: string | undefined): OverlayApiSite[] {
         api: typeof api === 'string' ? api.trim() : '',
         name: typeof name === 'string' ? name.trim() : '',
         detail: typeof detail === 'string' ? detail.trim() : undefined,
+        type: type === 'bilibili' || type === 'maccms' ? type : undefined,
         disabled: disabled === true,
       });
     }
@@ -110,5 +112,6 @@ type RawEnvSource = {
   api?: unknown;
   name?: unknown;
   detail?: unknown;
+  type?: unknown;
   disabled?: unknown;
 };

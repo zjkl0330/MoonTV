@@ -23,6 +23,7 @@
     "typecheck": "tsc --noEmit --incremental false",
     "test:watch": "jest --watch",
     "test": "jest",
+    "test:e2e": "playwright test",
     "format": "prettier -w .",
     "format:check": "prettier -c .",
     "gen:runtime": "node scripts/convert-config.js",
@@ -65,6 +66,7 @@
   "devDependencies": {
     "@commitlint/cli": "^16.3.0",
     "@commitlint/config-conventional": "^16.2.4",
+    "@playwright/test": "^1.65.1",
     "@svgr/webpack": "^8.1.0",
     "@tailwindcss/forms": "^0.5.10",
     "@testing-library/jest-dom": "^5.17.0",

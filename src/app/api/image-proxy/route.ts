@@ -14,6 +14,10 @@ function needsDoubanReferer(url: URL): boolean {
   return /(^|\.)douban/i.test(url.hostname);
 }
 
+function needsBilibiliReferer(url: URL): boolean {
+  return /(^|\.)(hdslb|bilivideo|biliimg)\./i.test(url.hostname);
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const imageUrl = searchParams.get('url');
@@ -50,6 +54,10 @@ export async function GET(request: Request) {
     // 豆瓣图站有 Referer 防盗链，只在取豆瓣图时带上
     if (needsDoubanReferer(parsedUrl)) {
       headers.Referer = 'https://movie.douban.com/';
+    }
+    // B 站封面同样校验 Referer
+    if (needsBilibiliReferer(parsedUrl)) {
+      headers.Referer = 'https://www.bilibili.com/';
     }
 
     const imageResponse = await fetch(parsedUrl.toString(), {

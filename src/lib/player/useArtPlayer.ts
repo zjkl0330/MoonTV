@@ -11,12 +11,24 @@ import {
   ensureVideoSource,
   PLAYBACK_RATES,
 } from './artPlayerOptions';
+import { effectiveTier, readPerformanceMode } from './deviceProfile';
 import { subscribeAdsFiltered } from './m3u8AdFilter';
+import {
+  type MaskRect,
+  type OverlayAdMasker,
+  attachOverlayAdMask,
+  OVERLAY_MASK_SETTING_NAME,
+  overlayMaskTooltip,
+  readManualMasks,
+  readMaskSensitivity,
+  readOverlayMaskMode,
+  saveManualMasks,
+} from './overlayAdMask';
 import { attachMouseGestures } from './playerGestures';
 import { applyObjectFit, readObjectFit } from './playerViewPrefs';
 import { bindQualityMenu } from './qualityMenu';
 import { attachSubtitleDrop } from './subtitleLoader';
-import { readEnhancePreference, setEnhance } from './videoFilter';
+import { destroyEnhance, readEnhanceMode, setEnhanceMode } from './videoFilter';
 
 const VOLUME_KEY = 'player_volume';
 const PLAYBACK_RATE_KEY = 'player_playback_rate';
@@ -48,6 +60,8 @@ interface UseArtPlayerParams {
   reloadToken: number;
   detail: any;
   totalEpisodes: number;
+  /** 悬浮广告打码的手动框选按片源隔离 */
+  adMaskStorageKey: string;
   /** 每次创建播放器时调用，用于组装设置面板条目 */
   buildSettings: () => any[];
   resumeTimeRef: React.MutableRefObject<number | null>;
@@ -92,6 +106,40 @@ export function useArtPlayer(params: UseArtPlayerParams) {
 
   // 当前这一集被剔除的广告，用于回写设置面板
   const adStatsRef = useRef({ segments: 0, seconds: 0 });
+  // 悬浮广告打码控制器，供设置面板/失败重载时复用
+  const overlayMaskRef = useRef<OverlayAdMasker | null>(null);
+
+  const mountOverlayMask = (player: any) => {
+    overlayMaskRef.current?.destroy();
+
+    const storageKey = paramsRef.current.adMaskStorageKey || 'global';
+    overlayMaskRef.current = attachOverlayAdMask(player, {
+      storageKey,
+      getMode: readOverlayMaskMode,
+      getSensitivity: readMaskSensitivity,
+      getManualRects: () => readManualMasks(storageKey),
+      onManualPick: (rect: MaskRect) => {
+        saveManualMasks(storageKey, [...readManualMasks(storageKey), rect]);
+        overlayMaskRef.current?.refresh();
+      },
+      onRectsChange: (_rects, stats) => {
+        player.setting?.update?.({
+          name: OVERLAY_MASK_SETTING_NAME,
+          tooltip: overlayMaskTooltip(readOverlayMaskMode(), stats),
+        });
+      },
+      onNotice: (message: string) => {
+        if (player?.notice) player.notice.show = message;
+      },
+    });
+
+    // 初始化时把命中数量同步到设置面板
+    const stats = overlayMaskRef.current?.getStats();
+    player.setting?.update?.({
+      name: OVERLAY_MASK_SETTING_NAME,
+      tooltip: overlayMaskTooltip(readOverlayMaskMode(), stats),
+    });
+  };
 
   const resetAdStats = () => {
     adStatsRef.current = { segments: 0, seconds: 0 };
@@ -105,10 +153,14 @@ export function useArtPlayer(params: UseArtPlayerParams) {
     disposersRef.current.forEach((dispose) => dispose());
     disposersRef.current = [];
 
+    overlayMaskRef.current?.destroy();
+    overlayMaskRef.current = null;
+
     const player = playerRef.current;
     if (!player) return;
 
     try {
+      destroyEnhance(player.video as HTMLVideoElement);
       if (player.video?.hls) {
         player.video.hls.destroy();
       }
@@ -156,6 +208,8 @@ export function useArtPlayer(params: UseArtPlayerParams) {
           state.url
         );
       }
+      // 换源后手动打码按新片源隔离，需要重新挂载
+      mountOverlayMask(playerRef.current);
       return;
     }
 
@@ -163,7 +217,8 @@ export function useArtPlayer(params: UseArtPlayerParams) {
 
     try {
       Artplayer.PLAYBACK_RATE = PLAYBACK_RATES;
-      Artplayer.USE_RAF = true;
+      // 低端设备关掉 RAF 驱动的时间更新，减少主线程唤醒次数
+      Artplayer.USE_RAF = effectiveTier(readPerformanceMode()) !== 'low';
 
       playerRef.current = new Artplayer(
         buildArtPlayerOptions({
@@ -183,7 +238,8 @@ export function useArtPlayer(params: UseArtPlayerParams) {
 
       const player = playerRef.current;
       applyObjectFit(player.video as HTMLVideoElement, readObjectFit());
-      setEnhance(player.video as HTMLVideoElement, readEnhancePreference());
+      setEnhanceMode(player.video as HTMLVideoElement, readEnhanceMode());
+      mountOverlayMask(player);
       disposersRef.current = [
         attachMouseGestures(player),
         attachSubtitleDrop(player),
@@ -284,5 +340,5 @@ export function useArtPlayer(params: UseArtPlayerParams) {
     return () => destroyPlayer();
   }, []);
 
-  return { artPlayerRef: playerRef, destroyPlayer };
+  return { artPlayerRef: playerRef, destroyPlayer, overlayMaskRef };
 }

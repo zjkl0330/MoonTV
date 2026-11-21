@@ -8,6 +8,14 @@ import {
   shouldUseHlsWorker,
 } from '@/lib/legacy/browser-support';
 
+import {
+  applyQualityCap,
+  buildHlsTuning,
+  effectiveTier,
+  getDeviceProfile,
+  readPerformanceMode,
+  resolveQualityCap,
+} from './deviceProfile';
 import { AdFilteringHlsLoader } from './m3u8AdFilter';
 
 // 对齐 Kazumi 的倍速区间（0.25x ~ 3.0x）
@@ -121,16 +129,14 @@ export function attachHlsSource(
     video.hls.destroy();
   }
 
+  const tuning = buildHlsTuning(
+    effectiveTier(readPerformanceMode(), getDeviceProfile()),
+    resolveHlsWorkerFlag()
+  );
+
   const hls = new Hls({
     debug: false, // 关闭日志
-    enableWorker: resolveHlsWorkerFlag(), // 老 Android WebView 上 blob worker 会崩，按能力决定
-    lowLatencyMode: true, // 开启低延迟 LL-HLS
-
-    /* 缓冲/内存相关 */
-    maxBufferLength: 30, // 前向缓冲最大 30s，过大容易导致高延迟
-    backBufferLength: 30, // 仅保留 30s 已播放内容，避免内存占用
-    maxBufferSize: 60 * 1000 * 1000, // 约 60MB，超出后触发清理
-
+    ...tuning,
     /* 自定义loader */
     loader: blockAdEnabled ? AdFilteringHlsLoader : Hls.DefaultConfig.loader,
   });
@@ -138,6 +144,12 @@ export function attachHlsSource(
   hls.loadSource(url);
   hls.attachMedia(video);
   video.hls = hls;
+
+  // 码率列表一到位就套用清晰度上限（低端设备默认 720P 以内）
+  const applyCap = () =>
+    applyQualityCap(hls, resolveQualityCap(getDeviceProfile()));
+  hls.on(Hls.Events.MANIFEST_PARSED, applyCap);
+  hls.on(Hls.Events.LEVELS_UPDATED, applyCap);
 
   ensureVideoSource(video, url);
 

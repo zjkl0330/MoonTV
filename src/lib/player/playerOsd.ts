@@ -25,7 +25,8 @@ const noop: OsdHandle = { show: () => undefined, hide: () => undefined };
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
 function createOsd(player: any): OsdHandle {
-  const surface: HTMLElement | undefined = player?.template?.player;
+  const surface: HTMLElement | undefined =
+    player?.template?.$player || player?.template?.player;
   if (!surface) return noop;
 
   if (typeof document.getElementById('art-osd-style') === 'undefined') {

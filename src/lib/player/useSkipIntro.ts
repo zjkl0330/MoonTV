@@ -32,6 +32,8 @@ interface UseSkipIntroOptions {
   artPlayerRef: React.MutableRefObject<any>;
   hasNextEpisode: () => boolean;
   playNextEpisode: () => void;
+  /** 外部共享的配置 ref，便于换源逻辑迁移片头片尾配置 */
+  configRef?: React.MutableRefObject<SkipConfig>;
 }
 
 /**
@@ -43,9 +45,11 @@ export function useSkipIntro({
   artPlayerRef,
   hasNextEpisode,
   playNextEpisode,
+  configRef,
 }: UseSkipIntroOptions) {
   const [skipConfig, setSkipConfig] = useState<SkipConfig>(EMPTY_SKIP_CONFIG);
-  const skipConfigRef = useRef(skipConfig);
+  const internalRef = useRef(skipConfig);
+  const skipConfigRef = configRef ?? internalRef;
   const lastCheckRef = useRef(0);
 
   useEffect(() => {

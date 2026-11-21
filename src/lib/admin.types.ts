@@ -21,6 +21,8 @@ export interface AdminConfig {
     name: string;
     api: string;
     detail?: string;
+    /** 默认苹果 CMS；bilibili 走 B 站适配器 */
+    type?: 'maccms' | 'bilibili';
     from: 'config' | 'custom';
     disabled?: boolean;
   }[];

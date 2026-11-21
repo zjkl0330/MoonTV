@@ -4,7 +4,7 @@
 
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 
 // 客户端收藏 API
 import {
@@ -14,6 +14,7 @@ import {
   subscribeToDataUpdates,
 } from '@/lib/db.client';
 import { getDoubanCategories } from '@/lib/douban.client';
+import { type FavoriteSortMode, sortFavorites } from '@/lib/sort';
 import { DoubanItem } from '@/lib/types';
 
 import CapsuleSwitch from '@/components/CapsuleSwitch';
@@ -53,11 +54,32 @@ function HomeClient() {
     poster: string;
     episodes: number;
     source_name: string;
+    year?: string;
+    save_time?: number;
     currentEpisode?: number;
     search_title?: string;
   };
 
   const [favoriteItems, setFavoriteItems] = useState<FavoriteItem[]>([]);
+  const [favoriteSort, setFavoriteSort] = useState<FavoriteSortMode>(() => {
+    if (typeof window === 'undefined') return 'recent';
+    const saved = localStorage.getItem('favorite_sort_mode');
+    return saved === 'year' || saved === 'title' ? saved : 'recent';
+  });
+
+  const sortedFavoriteItems = useMemo(
+    () => sortFavorites(favoriteItems, favoriteSort),
+    [favoriteItems, favoriteSort]
+  );
+
+  const changeFavoriteSort = (mode: FavoriteSortMode) => {
+    setFavoriteSort(mode);
+    try {
+      localStorage.setItem('favorite_sort_mode', mode);
+    } catch {
+      /* 隐私模式写不进去 */
+    }
+  };
 
   useEffect(() => {
     const fetchDoubanData = async () => {
@@ -120,6 +142,7 @@ function HomeClient() {
           poster: fav.cover,
           episodes: fav.total_episodes,
           source_name: fav.source_name,
+          save_time: fav.save_time,
           currentEpisode,
           search_title: fav?.search_title,
         } as FavoriteItem;
@@ -177,20 +200,38 @@ function HomeClient() {
                 <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
                   我的收藏
                 </h2>
-                {favoriteItems.length > 0 && (
-                  <button
-                    className='text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                    onClick={async () => {
-                      await clearAllFavorites();
-                      setFavoriteItems([]);
-                    }}
-                  >
-                    清空
-                  </button>
-                )}
+                <div className='flex items-center gap-3'>
+                  {favoriteItems.length > 0 && (
+                    <select
+                      value={favoriteSort}
+                      onChange={(event) =>
+                        changeFavoriteSort(
+                          event.target.value as FavoriteSortMode
+                        )
+                      }
+                      className='rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'
+                      aria-label='收藏排序方式'
+                    >
+                      <option value='recent'>最近添加</option>
+                      <option value='year'>年份</option>
+                      <option value='title'>名称</option>
+                    </select>
+                  )}
+                  {favoriteItems.length > 0 && (
+                    <button
+                      className='text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                      onClick={async () => {
+                        await clearAllFavorites();
+                        setFavoriteItems([]);
+                      }}
+                    >
+                      清空
+                    </button>
+                  )}
+                </div>
               </div>
               <div className='justify-start grid grid-cols-3 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'>
-                {favoriteItems.map((item) => (
+                {sortedFavoriteItems.map((item) => (
                   <div key={item.id + item.source} className='w-full'>
                     <VideoCard
                       query={item.search_title}

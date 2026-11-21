@@ -6,11 +6,16 @@ import { AdminConfig } from './admin.types';
 import { applyEnvSources } from './envSources';
 import runtimeConfig from './runtime';
 
+export type ApiSiteType = 'maccms' | 'bilibili';
+
 export interface ApiSite {
   key: string;
   api: string;
   name: string;
   detail?: string;
+  /** 默认按苹果 CMS 接口解析；bilibili 走第三方聚合/官方接口适配器 */
+  type?: ApiSiteType;
+  disabled?: boolean;
 }
 
 interface ConfigFileStruct {
@@ -106,6 +111,7 @@ async function initConfig() {
             name: site.name,
             api: site.api,
             detail: site.detail,
+            type: site.type,
             from: 'config',
             disabled: !!site.disabled,
           });
@@ -214,6 +220,7 @@ async function initConfig() {
             name: site.name,
             api: site.api,
             detail: site.detail,
+            type: site.type,
             from: 'config',
             disabled: !!site.disabled,
           })),
@@ -262,6 +269,7 @@ async function initConfig() {
         name: site.name,
         api: site.api,
         detail: site.detail,
+        type: site.type,
         from: 'config',
         disabled: !!site.disabled,
       })),
@@ -319,10 +327,11 @@ export async function getConfig(): Promise<AdminConfig> {
     apiSites.forEach((site) => {
       const existingSource = sourceConfigMap.get(site.key);
       if (existingSource) {
-        // 如果已存在，只覆盖 name、api、detail 和 from
+        // 如果已存在，只覆盖 name、api、detail、type 和 from
         existingSource.name = site.name;
         existingSource.api = site.api;
         existingSource.detail = site.detail;
+        existingSource.type = site.type;
         existingSource.from = 'config';
         if (site.disabled) {
           existingSource.disabled = true;
@@ -334,6 +343,7 @@ export async function getConfig(): Promise<AdminConfig> {
           name: site.name,
           api: site.api,
           detail: site.detail,
+          type: site.type,
           from: 'config',
           disabled: !!site.disabled,
         });
@@ -454,6 +464,7 @@ export async function resetConfig() {
       name: site.name,
       api: site.api,
       detail: site.detail,
+      type: site.type,
       from: 'config',
       disabled: !!site.disabled,
     })),
@@ -494,5 +505,6 @@ export async function getAvailableApiSites(): Promise<ApiSite[]> {
     name: s.name,
     api: s.api,
     detail: s.detail,
+    type: s.type,
   }));
 }

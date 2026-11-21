@@ -1,4 +1,6 @@
+import { getBilibiliDetail, searchBilibili } from '@/lib/bilibili';
 import { API_CONFIG, ApiSite, getConfig } from '@/lib/config';
+import { parsePublishTime } from '@/lib/sort';
 import { SearchResult } from '@/lib/types';
 import { cleanHtmlTags } from '@/lib/utils';
 
@@ -10,6 +12,7 @@ interface ApiSearchItem {
   vod_play_url?: string;
   vod_class?: string;
   vod_year?: string;
+  vod_time?: string;
   vod_content?: string;
   vod_douban_id?: number;
   type_name?: string;
@@ -19,6 +22,10 @@ export async function searchFromApi(
   apiSite: ApiSite,
   query: string
 ): Promise<SearchResult[]> {
+  if (apiSite.type === 'bilibili') {
+    return searchBilibili(apiSite, query);
+  }
+
   try {
     const apiBaseUrl = apiSite.api;
     const apiUrl =
@@ -87,6 +94,8 @@ export async function searchFromApi(
         desc: cleanHtmlTags(item.vod_content || ''),
         type_name: item.type_name,
         douban_id: item.vod_douban_id,
+        publish_time: parsePublishTime(item.vod_time),
+        remarks: item.vod_remarks,
       };
     });
 
@@ -160,6 +169,8 @@ export async function searchFromApi(
                 desc: cleanHtmlTags(item.vod_content || ''),
                 type_name: item.type_name,
                 douban_id: item.vod_douban_id,
+                publish_time: parsePublishTime(item.vod_time),
+                remarks: item.vod_remarks,
               };
             });
           } catch (error) {
@@ -194,6 +205,10 @@ export async function getDetailFromApi(
   apiSite: ApiSite,
   id: string
 ): Promise<SearchResult> {
+  if (apiSite.type === 'bilibili') {
+    return getBilibiliDetail(apiSite, id);
+  }
+
   if (apiSite.detail) {
     return handleSpecialSourceDetail(id, apiSite);
   }
@@ -266,6 +281,8 @@ export async function getDetailFromApi(
     desc: cleanHtmlTags(videoDetail.vod_content),
     type_name: videoDetail.type_name,
     douban_id: videoDetail.vod_douban_id,
+    publish_time: parsePublishTime(videoDetail.vod_time),
+    remarks: videoDetail.vod_remarks,
   };
 }
 

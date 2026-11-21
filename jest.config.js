@@ -11,6 +11,9 @@ const customJestConfig = {
   // Add more setup options before each test is run
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
 
+  // Playwright 用例由 test:e2e 运行，不进入 Jest
+  testPathIgnorePatterns: ['/node_modules/', '/.next/', '/e2e/'],
+
   // if using TypeScript with a baseUrl set to the root directory then you need the below for alias' to work
   moduleDirectories: ['node_modules', '<rootDir>/'],
 
