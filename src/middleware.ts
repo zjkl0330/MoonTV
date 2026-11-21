@@ -122,6 +122,13 @@ function shouldSkipAuth(pathname: string): boolean {
     '/favicon.ico',
     '/robots.txt',
     '/manifest.json',
+    '/manifest.webmanifest',
+    // PWA 资源必须公开，否则 Service Worker 会被登录重定向卡住，
+    // 浏览器会一直使用旧缓存，线上更新无法生效
+    '/sw.js',
+    '/workbox-',
+    '/registerSW.js',
+    '/fallback-',
     '/icons/',
     '/logo.png',
     '/screenshot.png',

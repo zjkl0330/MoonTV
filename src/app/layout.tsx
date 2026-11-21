@@ -12,6 +12,7 @@ import RuntimeConfig from '@/lib/runtime';
 
 import { GlobalErrorIndicator } from '../components/GlobalErrorIndicator';
 import { LegacySupport } from '../components/LegacySupport';
+import { ServiceWorkerUpdater } from '../components/ServiceWorkerUpdater';
 import { SiteProvider } from '../components/SiteProvider';
 import { ThemeProvider } from '../components/ThemeProvider';
 
@@ -123,6 +124,7 @@ export default async function RootLayout({
             {children}
             <GlobalErrorIndicator />
             <LegacySupport />
+            <ServiceWorkerUpdater />
           </SiteProvider>
         </ThemeProvider>
       </body>
