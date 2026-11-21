@@ -2,7 +2,7 @@
 
 'use client';
 
-const CURRENT_VERSION = '20261121140426';
+const CURRENT_VERSION = '20261121142635';
 
 // 版本检查结果枚举
 export enum UpdateStatus {
